@@ -4,8 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PDF Editor</title>
-    <!-- 引入PDF.js库 -->
-    <script src="https://mozilla.github.io/pdf.js/build/pdf.js"></script>
+    <!-- 更新PDF.js引用 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
     <style>
         body {
             margin: 0;
@@ -39,6 +40,12 @@
             border: 1px solid #ccc;
             max-width: 100%;
             overflow: auto;
+            background: #f8f8f8; /* 添加背景色方便观察 */
+            min-height: 500px; /* 确保容器有最小高度 */
+        }
+
+        canvas {
+            border: 1px solid #eee; /* 添加边框方便观察canvas元素 */
         }
 
         .page-container {
@@ -97,51 +104,63 @@
             }
         });
 
-        // 加载PDF
+        // 修改后的loadPDF函数
         async function loadPDF(url) {
-            const loadingTask = pdfjsLib.getDocument(url);
-            pdfDoc = await loadingTask.promise;
-            renderPDF();
+            try {
+                const loadingTask = pdfjsLib.getDocument({
+                    url: url,
+                    disableWorker: true // 测试时暂时禁用worker
+                });
+                pdfDoc = await loadingTask.promise;
+                console.log("PDF加载成功，总页数:", pdfDoc.numPages);
+                await renderPDF();
+            } catch (error) {
+                console.error("PDF加载失败:", error);
+                alert("PDF加载失败，请检查文件格式和浏览器控制台报错");
+            }
         }
-
-        // 渲染PDF
+        
+        // 修改后的renderPDF函数
         async function renderPDF() {
-            const container = document.getElementById('pdf-container');
-            container.innerHTML = '';
-
-            for (let i = 1; i <= pdfDoc.numPages; i++) {
-                const page = await pdfDoc.getPage(i);
-                const viewport = page.getViewport({ scale: 1.5 });
-
-                // 创建页面容器
-                const pageDiv = document.createElement('div');
-                pageDiv.className = 'page-container';
-                pageDiv.style.width = `${viewport.width}px`;
-                pageDiv.style.height = `${viewport.height}px`;
-
-                // 渲染PDF页面
-                const canvas = document.createElement('canvas');
-                const context = canvas.getContext('2d');
-                canvas.height = viewport.height;
-                canvas.width = viewport.width;
-                
-                const renderContext = {
-                    canvasContext: context,
-                    viewport: viewport
-                };
-                await page.render(renderContext).promise;
-
-                // 创建注释层
-                const annotationLayer = document.createElement('div');
-                annotationLayer.className = 'annotation-layer';
-                annotationLayer.style.width = `${viewport.width}px`;
-                annotationLayer.style.height = `${viewport.height}px`;
-
-                pageDiv.append(canvas, annotationLayer);
-                container.appendChild(pageDiv);
-
-                // 添加交互事件
-                annotationLayer.addEventListener('click', handleAnnotation);
+            try {
+                const container = document.getElementById('pdf-container');
+                container.innerHTML = '';
+        
+                for (let i = 1; i <= pdfDoc.numPages; i++) {
+                    const page = await pdfDoc.getPage(i);
+                    const viewport = page.getViewport({ scale: 1.5 });
+        
+                    console.log(`正在渲染第 ${i} 页，尺寸：`, viewport);
+        
+                    const pageDiv = document.createElement('div');
+                    pageDiv.className = 'page-container';
+                    
+                    // 添加页面编号显示
+                    const pageNumber = document.createElement('div');
+                    pageNumber.textContent = `第 ${i} 页`;
+                    pageNumber.style.position = 'absolute';
+                    pageNumber.style.bottom = '10px';
+                    pageNumber.style.right = '10px';
+                    pageNumber.style.color = 'red';
+                    
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.height = viewport.height;
+                    canvas.width = viewport.width;
+                    
+                    const renderContext = {
+                        canvasContext: context,
+                        viewport: viewport
+                    };
+                    
+                    await page.render(renderContext).promise;
+                    console.log(`第 ${i} 页渲染完成`);
+                    
+                    pageDiv.append(canvas, pageNumber);
+                    container.appendChild(pageDiv);
+                }
+            } catch (error) {
+                console.error("渲染失败:", error);
             }
         }
 
