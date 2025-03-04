@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Editor</title>
+    <!-- 引入PDF.js库 -->
+    <script src="https://mozilla.github.io/pdf.js/build/pdf.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        }
+
+        #toolbar {
+            background: #f0f0f0;
+            padding: 10px;
+            margin-bottom: 10px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .tool-btn {
+            padding: 8px 15px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            background: white;
+            border-radius: 4px;
+        }
+
+        .tool-btn.active {
+            background: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+
+        #pdf-container {
+            border: 1px solid #ccc;
+            max-width: 100%;
+            overflow: auto;
+        }
+
+        .page-container {
+            position: relative;
+            margin: 10px auto;
+            box-shadow: 0 0 5px rgba(0,0,0,0.1);
+        }
+
+        .annotation-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        .text-annotation {
+            position: absolute;
+            border: 1px dashed #007bff;
+            padding: 2px;
+            min-width: 50px;
+            min-height: 20px;
+            cursor: move;
+        }
+    </style>
+</head>
+<body>
+    <div id="toolbar">
+        <input type="file" id="pdfInput" accept=".pdf" class="tool-btn">
+        <button class="tool-btn" data-mode="text">添加文本</button>
+        <button class="tool-btn" data-mode="highlight">高亮</button>
+        <button class="tool-btn" data-mode="draw">绘图</button>
+        <button class="tool-btn" id="saveBtn">保存修改</button>
+    </div>
+    <div id="pdf-container"></div>
+
+    <script>
+        let pdfDoc = null;
+        let currentPage = 1;
+        let currentMode = null;
+        let annotations = [];
+
+        // 初始化工具按钮
+        document.querySelectorAll('[data-mode]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                currentMode = btn.dataset.mode;
+                document.querySelectorAll('[data-mode]').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            });
+        });
+
+        // 文件上传处理
+        document.getElementById('pdfInput').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const url = URL.createObjectURL(file);
+                await loadPDF(url);
+            }
+        });
+
+        // 加载PDF
+        async function loadPDF(url) {
+            const loadingTask = pdfjsLib.getDocument(url);
+            pdfDoc = await loadingTask.promise;
+            renderPDF();
+        }
+
+        // 渲染PDF
+        async function renderPDF() {
+            const container = document.getElementById('pdf-container');
+            container.innerHTML = '';
+
+            for (let i = 1; i <= pdfDoc.numPages; i++) {
+                const page = await pdfDoc.getPage(i);
+                const viewport = page.getViewport({ scale: 1.5 });
+
+                // 创建页面容器
+                const pageDiv = document.createElement('div');
+                pageDiv.className = 'page-container';
+                pageDiv.style.width = `${viewport.width}px`;
+                pageDiv.style.height = `${viewport.height}px`;
+
+                // 渲染PDF页面
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+                
+                const renderContext = {
+                    canvasContext: context,
+                    viewport: viewport
+                };
+                await page.render(renderContext).promise;
+
+                // 创建注释层
+                const annotationLayer = document.createElement('div');
+                annotationLayer.className = 'annotation-layer';
+                annotationLayer.style.width = `${viewport.width}px`;
+                annotationLayer.style.height = `${viewport.height}px`;
+
+                pageDiv.append(canvas, annotationLayer);
+                container.appendChild(pageDiv);
+
+                // 添加交互事件
+                annotationLayer.addEventListener('click', handleAnnotation);
+            }
+        }
+
+        // 处理标注
+        function handleAnnotation(e) {
+            if (!currentMode) return;
+
+            const layer = e.currentTarget;
+            const rect = layer.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            switch(currentMode) {
+                case 'text':
+                    createTextAnnotation(layer, x, y);
+                    break;
+                case 'highlight':
+                    createHighlight(layer, x, y);
+                    break;
+            }
+        }
+
+        // 创建文本标注
+        function createTextAnnotation(layer, x, y) {
+            const textDiv = document.createElement('div');
+            textDiv.className = 'text-annotation';
+            textDiv.style.left = `${x}px`;
+            textDiv.style.top = `${y}px`;
+            textDiv.contentEditable = true;
+            
+            layer.appendChild(textDiv);
+            textDiv.focus();
+        }
+
+        // 保存功能
+        document.getElementById('saveBtn').addEventListener('click', async () => {
+            // 这里需要实现保存逻辑
+            alert('保存功能需要后端支持');
+        });
+
+        // 初始化PDF.js worker
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 
+            'https://mozilla.github.io/pdf.js/build/pdf.worker.js';
+    </script>
+</body>
+</html>
